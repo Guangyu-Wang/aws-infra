@@ -30,3 +30,13 @@ variable "private_subnet_cidrs" {
  description = "Private Subnet CIDR values"
  //default     = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
 }
+
+variable "ami_id"{
+  type= string
+  description = "ami id"
+}
+
+variable "key_pair"{
+  tyoe=string
+  default = "packer_63f4f1f7-0b96-e39c-f393-af095e05e58b"
+}
