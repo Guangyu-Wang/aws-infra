@@ -37,6 +37,21 @@ variable "ami_id"{
 }
 
 variable "key_pair"{
-  tyoe=string
-  default = "packer_63f4f1f7-0b96-e39c-f393-af095e05e58b"
+  type=string
+  default = "aws-dev"
 }
+
+ variable "db_username"{
+  type=string
+  default="csye6225"
+ }
+
+ variable "db_password"{
+  type=string
+  default="60446201Wgy"
+ }
+
+ variable "db_name"{
+  type=string
+  default = "cloud"
+ }
