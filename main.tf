@@ -280,7 +280,7 @@ resource "aws_db_instance" "example" {
   allocated_storage = 50
   instance_class = "db.t3.micro"
   multi_az  = false
-  vpc_security_group_ids = [aws_security_group.example.id]
+  vpc_security_group_ids = [aws_security_group.db.id]
   db_name="csye6225"
   username = var.db_username
   password = var.db_password
@@ -293,4 +293,12 @@ resource "aws_db_instance" "example" {
     Name = "example-db"
     //db_name = "csye6225"
   }
+}
+
+resource "aws_route53_record" "aws_a_record" {
+  zone_id = var.zone_id
+  name="dev.guangyuwang.me"
+  type = "A"
+  ttl = "60"
+  records = [aws_instance.example.public_ip]
 }
