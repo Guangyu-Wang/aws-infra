@@ -55,3 +55,8 @@ variable "key_pair"{
   type=string
   default = "cloud"
  }
+
+ variable "zone_id" {
+   type =string
+   default = "Z09075551AWE1P66OZOPX"
+ }
