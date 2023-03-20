@@ -187,6 +187,7 @@ resource "aws_iam_policy" "ec2_policy"{
         Resource=[
           "arn:aws:s3:::${aws_s3_bucket.private_bucket.bucket}",
           "arn:aws:s3:::${aws_s3_bucket.private_bucket.bucket}/*",
+          "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
         ]
       },
       {
