@@ -186,8 +186,7 @@ resource "aws_iam_policy" "ec2_policy"{
         Effect="Allow",
         Resource=[
           "arn:aws:s3:::${aws_s3_bucket.private_bucket.bucket}",
-          "arn:aws:s3:::${aws_s3_bucket.private_bucket.bucket}/*",
-          "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
+          "arn:aws:s3:::${aws_s3_bucket.private_bucket.bucket}/*"
         ]
       },
       {
@@ -204,6 +203,12 @@ resource "aws_iam_role_policy_attachment" "ec2_policy_role" {
   //name="iam-instance-profile"
   role=aws_iam_role.ec2_role.name
   policy_arn=aws_iam_policy.ec2_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch_policy_role" {
+  //name="iam-instance-profile"
+  role=aws_iam_role.ec2_role.name
+  policy_arn="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
 
