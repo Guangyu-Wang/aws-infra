@@ -70,22 +70,23 @@ resource "aws_security_group" "example" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    //cidr_blocks = ["0.0.0.0/0"]
+    security_groups = [aws_security_group.load.id]
   }
 
-  ingress {
+  /*ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
+  }*/
 
-  ingress {
+  /*ingress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
+  }*/
 
   ingress {
     from_port   = 3306
@@ -98,7 +99,8 @@ resource "aws_security_group" "example" {
     from_port   = 8000
     to_port     = 8000
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    //cidr_blocks = ["0.0.0.0/0"]
+    security_groups = [aws_security_group.load.id]
   }
 
   egress {
@@ -117,7 +119,7 @@ resource "aws_security_group" "db" {
     from_port = 3306
     to_port = 3306
     protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    //cidr_blocks = ["0.0.0.0/0"]
     security_groups = [aws_security_group.example.id]
   }
   egress{
@@ -126,6 +128,35 @@ resource "aws_security_group" "db" {
     protocol = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+resource "aws_security_group" "load" {
+   name="load balancer"
+   description = "load balancer group"
+   vpc_id =aws_vpc.Guangyu.id
+
+   ingress {
+    from_port = 80
+    to_port = 80
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port = 443
+    to_port = 443
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    
+  }
+
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+   
 }
 
 resource "random_uuid" "uuid" {
@@ -242,7 +273,7 @@ resource "aws_db_parameter_group" "my_parameter_group" {
   description   = "My custom RDS parameter group"
 }
 
-resource "aws_instance" "example"{
+/*resource "aws_instance" "example"{
   ami=var.ami_id//"ami-0c6c41abbb70d840e"
   instance_type = "t2.micro"
   subnet_id = aws_subnet.public_subnets[0].id
@@ -272,7 +303,7 @@ resource "aws_instance" "example"{
   sudo systemctl enable webapp.service
   sudo systemctl start webapp.service
   EOF
-}
+}*/
 
 
 resource "aws_db_subnet_group" "example" {
@@ -302,9 +333,193 @@ resource "aws_db_instance" "example" {
 }
 
 resource "aws_route53_record" "aws_a_record" {
-  zone_id = var.zone_id
+  /*for_each = {
+    for dvo in aws_acm_certificate.cert.domain_validation_options:dvo.domain_name=>{
+      name=dvo.resource_record_name
+      record=dvo.resource_record_value
+      type=dvo.resource_record_type
+    } 
+  }*/
+  //allow_overwrite = true
+  //name=each.value.name
+  //records = [each.value.record]
+  //type = each.value.type
+  //zone_id = data.aws_route53_zone.zone.zone_id
+  //ttl="60"
+  zone_id = var.zone_id//aws_route53_zone.domain.zone_id
   name="dev.guangyuwang.me"
   type = "A"
-  ttl = "60"
-  records = [aws_instance.example.public_ip]
+  //ttl = 60
+  //records = [aws_instance.example.public_ip]
+  alias {
+    name=aws_lb.lb.dns_name
+    zone_id=aws_lb.lb.zone_id
+    evaluate_target_health = false
+  }
 }
+
+data "template_file" "user_data"{
+  template = <<EOF
+  #!/bin/bash
+  touch /home/ec2-user/home/runner/work/webapp/webapp/.env
+  echo "DB_USERNAME="csye6225"" >> /home/ec2-user/home/runner/work/webapp/webapp/.env
+  echo "DB_PASSWORD=${var.db_password}" >> /home/ec2-user/home/runner/work/webapp/webapp/.env
+  echo "DB_HOSTNAME=${aws_db_instance.example.address}">> /home/ec2-user/home/runner/work/webapp/webapp/.env
+  echo "S3_BUCKET_NAME=${aws_s3_bucket.private_bucket.bucket}">> /home/ec2-user/home/runner/work/webapp/webapp/.env
+  echo "DB_NAME="csye6225"" >>/home/ec2-user/home/runner/work/webapp/webapp/.env
+  echo "S3_REGION=${aws_s3_bucket.private_bucket.region}" >>/home/ec2-user/home/runner/work/webapp/webapp/.env
+  sudo systemctl enable webapp.service
+  sudo systemctl start webapp.service
+  EOF
+}
+
+resource "aws_launch_template" "template" {
+  name="asg_launch_template"
+  image_id = var.ami_id
+  instance_type = "t2.micro"
+  
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups= [aws_security_group.example.id]
+  }
+  key_name = var.key_pair
+  iam_instance_profile {
+    name =aws_iam_instance_profile.webapps3.name
+  }
+  user_data = base64encode(data.template_file.user_data.rendered)
+
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "template-instance"
+    }
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_autoscaling_group" "auto" {
+  name = "aws_autoscaling_group"
+  //launch_configuration = aws_launch_configuration.template.name
+  vpc_zone_identifier = [aws_subnet.public_subnets[0].id,aws_subnet.public_subnets[1].id,aws_subnet.public_subnets[2].id]
+  //cooldown=60
+  min_size = 1
+  max_size = 3
+  desired_capacity = 1
+
+  tag {
+    key = "Application"
+    value = "Webapp"
+    propagate_at_launch = true
+  }
+
+  launch_template {
+    id=aws_launch_template.template.id
+    version = "$Latest"
+  }
+
+  target_group_arns = [aws_lb_target_group.target.arn]
+  
+}
+
+resource "aws_autoscaling_policy" "scale_up_policy" {
+  name                   = "scale-up-policy"
+  policy_type            = "SimpleScaling"
+  autoscaling_group_name = aws_autoscaling_group.auto.name
+  adjustment_type = "ChangeInCapacity" 
+  scaling_adjustment     = 1
+  cooldown = 60
+  
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_up" {
+    alarm_name          = "up-cpu-alarm"
+    comparison_operator = "GreaterThanOrEqualToThreshold"
+    evaluation_periods  = "2"
+    metric_name         = "CPUUtilization"
+    namespace           = "AWS/EC2"
+    period              = "60"
+    statistic           = "Average"
+    threshold           = "3"
+
+    dimensions ={
+      AutoScalingGroupName = aws_autoscaling_group.auto.name
+    }
+
+    alarm_description = "CPU up utilization"
+    alarm_actions = [aws_autoscaling_policy.scale_up_policy.arn]
+}
+
+resource "aws_autoscaling_policy" "scale_down_policy" {
+  name                   = "scale-down-policy"
+  policy_type            = "SimpleScaling"
+  adjustment_type = "ChangeInCapacity" 
+  autoscaling_group_name = aws_autoscaling_group.auto.name
+  scaling_adjustment     = -1
+  cooldown = 60
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_down" {
+    alarm_name          = "down-cpu-alarm"
+    comparison_operator = "LessThanOrEqualToThreshold"
+    evaluation_periods  = "2"
+    metric_name         = "CPUUtilization"
+    namespace           = "AWS/EC2"
+    period              = "60"
+    statistic           = "Average"
+    threshold           = "2"
+
+    dimensions ={
+      AutoScalingGroupName = aws_autoscaling_group.auto.name
+    }
+
+    alarm_description = "CPU up utilization"
+    alarm_actions = [aws_autoscaling_policy.scale_down_policy.arn]
+}
+
+resource "aws_lb" "lb" {
+  name = "csye6225-lb"
+  internal = false
+  load_balancer_type = "application"
+  subnets = [aws_subnet.public_subnets[0].id,aws_subnet.public_subnets[1].id,aws_subnet.public_subnets[2].id]
+  security_groups = [aws_security_group.load.id]
+
+  tags = {
+    Application="Webapp"
+  }
+}
+
+resource "aws_lb_target_group" "target" {
+  name = "csye6225-lb-tg"
+  target_type = "instance"
+  port = 8000
+  protocol = "HTTP"
+  vpc_id = aws_vpc.Guangyu.id
+
+  health_check {
+    interval = 30
+    port = 8000
+    protocol = "HTTP"
+    path = "/healthz"
+    healthy_threshold = 3
+    unhealthy_threshold = 3
+    timeout = 6
+  }
+}
+
+resource "aws_lb_listener" "front_end" {
+  load_balancer_arn = aws_lb.lb.arn
+  port              = 80
+  protocol          = "HTTP"
+  //ssl_policy        = "ELBSecurityPolicy-2016-08"
+  //certificate_arn   = aws_acm_certificate_validation.val.certificate_arn//"arn:aws:iam::187416307283:server-certificate/test_cert_rab3wuqwgja25ct3n4jdj2tzu4"
+
+  default_action {
+    type="forward"
+    target_group_arn = aws_lb_target_group.target.arn
+  }
+}
+
+
