@@ -330,6 +330,8 @@ resource "aws_db_instance" "example" {
     Name = "example-db"
     //db_name = "csye6225"
   }
+  storage_encrypted = true
+  kms_key_id = aws_kms_key.rds.arn
 }
 
 resource "aws_route53_record" "aws_a_record" {
@@ -347,7 +349,7 @@ resource "aws_route53_record" "aws_a_record" {
   //zone_id = data.aws_route53_zone.zone.zone_id
   //ttl="60"
   zone_id = var.zone_id//aws_route53_zone.domain.zone_id
-  name="dev.guangyuwang.me"
+  name="prod.guangyuwang.me"
   type = "A"
   //ttl = 60
   //records = [aws_instance.example.public_ip]
@@ -397,6 +399,16 @@ resource "aws_launch_template" "template" {
   }
   lifecycle {
     create_before_destroy = true
+  }
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs{
+      volume_type = "gp2"
+      delete_on_termination = true
+      volume_size = 50
+      encrypted = true
+      kms_key_id = aws_kms_key.ebs.arn
+    }
   }
 }
 
@@ -511,15 +523,86 @@ resource "aws_lb_target_group" "target" {
 
 resource "aws_lb_listener" "front_end" {
   load_balancer_arn = aws_lb.lb.arn
-  port              = 80
-  protocol          = "HTTP"
-  //ssl_policy        = "ELBSecurityPolicy-2016-08"
+  port              = 443//80
+  protocol          = "HTTPS"//"HTTP"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn = var.certificate_arn
+
   //certificate_arn   = aws_acm_certificate_validation.val.certificate_arn//"arn:aws:iam::187416307283:server-certificate/test_cert_rab3wuqwgja25ct3n4jdj2tzu4"
 
   default_action {
     type="forward"
     target_group_arn = aws_lb_target_group.target.arn
   }
+}
+
+resource "aws_lb_listener_certificate" "webapp_cert" {
+  listener_arn = aws_lb_listener.front_end.arn
+  certificate_arn = var.certificate_arn
+}
+
+data "aws_caller_identity" "current" {
+  
+}
+
+resource "aws_kms_key" "ebs" {
+  description = "KMS Key for EBS"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "kms-key-for-ebs"
+    Statement = [
+      {
+        Sid       = "KEY for user"
+        Effect    = "Allow"
+        Principal = {
+          AWS = [
+            "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+          ]
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid="Add role"
+        Effect="Allow"
+        Principal={
+          AWS="arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_kms_key" "rds" {
+  description = "KMS Key for RDS"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "kms-key-for-rds"
+    Statement = [
+      {
+        Sid       = "Key for RDS Instance"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid       = "Add role"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 
