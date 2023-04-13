@@ -58,10 +58,12 @@ variable "key_pair"{
 
  variable "zone_id" {
    type =string
+
    default = "Z0850360CZACY5TUTPWS"//"Z09075551AWE1P66OZOPX"
  }
 
  variable "certificate_arn" {
    type=string
    default = "arn:aws:acm:us-east-1:492677447136:certificate/f188d0fc-4c2c-4242-b758-62e09da826c2"//"arn:aws:acm:us-east-1:317988945521:certificate/6354afd7-7cfe-49a1-b9b2-2c946df005b3"
+
  }
